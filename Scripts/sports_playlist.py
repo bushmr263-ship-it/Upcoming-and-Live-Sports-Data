@@ -1,4 +1,4 @@
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 import json
 import os
 import requests
@@ -12,9 +12,14 @@ M3U_OUTPUT_FILE = "Sports_data.m3u"
 OWNER_NAME = "Shawon"
 TELEGRAM_LINK = "https://t.me/+VqDOF_-beaQyMWY1"
 
+HEADERS = {
+    "User-Agent": "Mozilla/5.0",
+    "Cache-Control": "no-cache",
+}
 
-def build_from_m3u(bd_time):
-    resp = requests.get(M3U_SOURCE_URL, timeout=25)
+
+def build_from_m3u(bd_time: str):
+    resp = requests.get(M3U_SOURCE_URL, headers=HEADERS, timeout=25)
     resp.raise_for_status()
     lines = resp.text.splitlines()
 
@@ -66,13 +71,17 @@ def update_sports():
 
     # 1. JSON ডেটা সিঙ্ক
     try:
-        j_resp = requests.get(JSON_SOURCE_URL, timeout=30)
+        j_resp = requests.get(JSON_SOURCE_URL, headers=HEADERS, timeout=30)
         j_resp.raise_for_status()
         j_data = j_resp.json()
+
         if isinstance(j_data, dict):
             j_data["owner"] = OWNER_NAME
             j_data["telegram_channel"] = TELEGRAM_LINK
             j_data["last_update_time"] = json_time
+        elif isinstance(j_data, list) and not j_data:
+            raise ValueError("Source JSON list is empty.")
+
         with open(JSON_OUTPUT_FILE, "w", encoding="utf-8") as jf:
             json.dump(j_data, jf, indent=2, ensure_ascii=False)
         print(f"Updated {JSON_OUTPUT_FILE} at {bd_time}")
@@ -83,7 +92,7 @@ def update_sports():
     try:
         m3u_content, count = build_from_m3u(bd_time)
         if not m3u_content or count == 0:
-            print(f"No Sports stream entries found at {bd_time}.")
+            print(f"No Sports stream entries found at {bd_time}; keeping existing file if present.")
             if not os.path.exists(M3U_OUTPUT_FILE):
                 header_only = [
                     "#EXTM3U",
